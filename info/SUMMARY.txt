@@ -1,0 +1,184 @@
+================================================================================
+                    DATASET LOADING INVESTIGATION SUMMARY
+================================================================================
+
+PROBLEM STATEMENT (Chinese Original):
+查看是怎么加载 dataset 的，以 gsm8k 为例。并且探寻在使用 hf 镜像会导致
+加载不了（只能使用官方源），是 lighteval 加载 dataset 时的什么动作衍生的问题。
+
+PROBLEM STATEMENT (English Translation):
+Investigate how datasets are loaded, using gsm8k as an example. Explore why 
+using HuggingFace mirrors causes loading failures (only official sources work),
+and identify which action in lighteval's dataset loading process causes this issue.
+
+================================================================================
+                              KEY FINDINGS
+================================================================================
+
+ROOT CAUSE:
+-----------
+The download_dataset_worker() method in lighteval_task.py calls load_dataset()
+with ONLY 3 parameters:
+  ✓ path (e.g., "openai/gsm8k")
+  ✓ name (e.g., "main")  
+  ✓ revision (e.g., None)
+
+MISSING PARAMETERS:
+  ✗ download_config - Configuration for proxies, retries, cache behavior
+  ✗ token - Authentication token for private datasets or mirrors requiring auth
+  ✗ trust_remote_code - Security setting for datasets with custom code
+  ✗ download_mode - Control over caching and redownload behavior
+
+================================================================================
+                    SPECIFIC ACTIONS CAUSING MIRROR FAILURES
+================================================================================
+
+ACTION 1: Minimal load_dataset() call without configuration
+----------
+Location: src/lighteval/tasks/lighteval_task.py:453-457
+Code:
+    dataset = load_dataset(
+        path=task.dataset_path,
+        name=task.dataset_config_name,
+        revision=task.dataset_revision,
+    )
+
+Impact: Cannot configure download behavior for mirrors
+
+ACTION 2: No token parameter passed
+----------
+Impact: 
+  - Mirrors requiring authentication fail with 401 errors
+  - Environment variable tokens are not automatically used
+  - Cannot access private datasets
+
+ACTION 3: No download_config parameter
+----------
+Impact:
+  - Cannot set custom proxies for mirror access
+  - Cannot configure retry logic when mirror is slow
+  - Cannot control cache behavior
+  - Cannot specify alternative API endpoints
+
+ACTION 4: No fallback mechanism
+----------
+Impact:
+  - When mirror fails, loading completely fails
+  - No automatic retry with official source
+  - Poor error messages don't indicate mirror issues
+
+================================================================================
+                              WHY MIRRORS FAIL
+================================================================================
+
+REASON 1: Incomplete API Implementation
+----------------------------------------
+Mirror sites may only sync data files but not implement full HuggingFace Hub API
+Result: Metadata requests timeout or return incomplete information
+
+REASON 2: Metadata and Data Source Inconsistency  
+-----------------------------------------------
+load_dataset() workflow:
+  Step 1: Fetch metadata from Hub API
+  Step 2: Download data files
+  
+With mirrors: Steps may hit different endpoints, causing conflicts
+
+REASON 3: Authentication Issues
+--------------------------------
+Mirrors requiring authentication cannot receive tokens because:
+  - token parameter not passed to load_dataset()
+  - HF_TOKEN environment variable not explicitly read
+  - No custom header support for mirror-specific auth
+
+================================================================================
+                          EXAMPLE: GSM8K LOADING
+================================================================================
+
+Task Definition: src/lighteval/tasks/tasks/gsm8k.py
+Config:
+  - hf_repo: "openai/gsm8k"
+  - hf_subset: "main"
+  - hf_avail_splits: ["train", "test"]
+  - evaluation_splits: ["test"]
+
+Loading Path:
+  1. Pipeline._init_tasks_and_requests()
+  2. Registry.load_tasks()
+  3. LightevalTask.load_datasets()
+  4. download_dataset_worker(task)
+  5. load_dataset(path, name, revision)  ← Problem occurs here
+
+================================================================================
+                         RECOMMENDED SOLUTIONS
+================================================================================
+
+SHORT-TERM (Immediate):
+-----------------------
+Add parameters to download_dataset_worker():
+
+    @staticmethod
+    def download_dataset_worker(
+        task: "LightevalTask",
+        download_config: DownloadConfig | None = None,
+        token: str | None = None,
+    ) -> DatasetDict:
+        if token is None:
+            token = os.getenv("HF_TOKEN")
+        
+        dataset = load_dataset(
+            path=task.dataset_path,
+            name=task.dataset_config_name,
+            revision=task.dataset_revision,
+            download_config=download_config,  # NEW
+            token=token,                      # NEW
+        )
+        return dataset
+
+MID-TERM (Configuration):
+-------------------------
+Add download settings to LightevalTaskConfig:
+
+    @dataclass
+    class LightevalTaskConfig:
+        # ... existing fields ...
+        download_config: DownloadConfig | None = None
+        use_auth_token: bool | str | None = None
+        trust_remote_code: bool = False
+
+LONG-TERM (Robust):
+-------------------
+Implement fallback mechanism:
+
+    def download_dataset_with_fallback(task, max_retries=3):
+        try:
+            return load_dataset(...)  # Try mirror
+        except Exception as e:
+            logger.warning(f"Mirror failed, using official source")
+            with temporarily_unset_hf_endpoint():
+                return load_dataset(...)  # Fallback
+
+================================================================================
+                         DOCUMENTATION FILES
+================================================================================
+
+info/
+├── README.md                           - Overview and quick reference
+├── dataset_loading_analysis_en.md      - Detailed English analysis
+├── dataset_loading_analysis_zh.md      - Detailed Chinese analysis  
+├── dataset_loading_flow_diagram.md     - Visual flow diagrams
+└── SUMMARY.txt                         - This file
+
+Total: 877 lines of documentation
+
+================================================================================
+                            INVESTIGATION INFO
+================================================================================
+
+Date: December 27, 2025
+Investigator: GitHub Copilot
+Repository: efsotr/lighteval
+Branch: main
+Commit: Added comprehensive dataset loading investigation documentation
+
+================================================================================
