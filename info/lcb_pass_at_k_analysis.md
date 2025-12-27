@@ -214,5 +214,17 @@ lcb_codegen_metric = SampleLevelMetric(
 
 - **16 的含义**：表示为每个编程问题生成 16 个不同的代码样本
 - **设置方式**：通过指标的 `num_samples()` 方法返回 16，这个值会被传递到模型的 sampling_params 中
-- **当前问题**：`CodegenMetric` 类缺少 `num_samples()` 方法的实现
-- **解决方案**：需要在 `CodegenMetric` 类中添加 `num_samples()` 方法返回 16
+- **已完成修复**：`CodegenMetric` 类现已正确实现，继承了 `SamplingMetric` 并实现了 `num_samples()` 方法
+- **验证结果**：✅ 所有结构检查通过，框架现在会正确为 LCB 任务生成 16 个样本
+
+## 验证测试
+
+进行了以下验证：
+
+1. ✓ SamplingMetric 已正确导入
+2. ✓ CodegenMetric 继承自 SamplingMetric 和 SampleLevelComputation
+3. ✓ `__init__` 方法接受 `n` 参数（默认值为 16）
+4. ✓ `self.n` 在 `__init__` 中正确赋值
+5. ✓ `num_samples()` 方法已实现
+6. ✓ `num_samples()` 返回 `self.n`
+7. ✓ `lcb_codegen_metric` 使用 `CodegenMetric(n=16)` 实例化
