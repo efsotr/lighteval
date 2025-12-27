@@ -105,22 +105,49 @@ num_return_sequences=num_samples  # 设置为 16
 self.sampling_params["n"] = num_samples  # 设置为 16
 ```
 
-### 3. 当前实现的问题
+## 当前实现状态
 
-**关键问题**：`CodegenMetric` 类**没有实现** `num_samples()` 方法！
+✅ **已修复**：`CodegenMetric` 类现在正确继承了 `SamplingMetric` 并实现了 `num_samples()` 方法。
 
-在 `main.py` 第 79-104 行，`CodegenMetric` 类只实现了 `compute()` 方法，但缺少 `num_samples()` 方法。这意味着：
+修复后的实现（main.py 第 79-119 行）：
 
 ```python
-class CodegenMetric(SampleLevelComputation):
-    def compute(self, model_response: ModelResponse, doc: Doc, **kwargs) -> dict:
-        # ... 实现代码生成评估
-        pass
+class CodegenMetric(SamplingMetric, SampleLevelComputation):
+    def __init__(self, n: int = 16, **kwargs):
+        """初始化代码生成指标
+        
+        Args:
+            n (int): 生成的样本数，默认为 16
+            **kwargs: 其他参数传递给 SamplingMetric
+        """
+        super().__init__(**kwargs)
+        self.n = n
+        self.attribute_must_be_set = ["n"]
     
-    # ❌ 缺少这个方法！
-    # def num_samples(self):
-    #     return 16
+    def compute(self, model_response: ModelResponse, doc: Doc, **kwargs) -> dict:
+        """计算 pass@1 指标"""
+        # ... 实现代码生成评估
+        return metrics["pass@1"]
+    
+    def num_samples(self):
+        """返回需要生成的样本数"""
+        return self.n
 ```
+
+指标定义（main.py 第 122-129 行）：
+
+```python
+lcb_codegen_metric = SampleLevelMetric(
+    metric_name="codegen_pass@1:16",
+    category=SamplingMethod.GENERATIVE,
+    higher_is_better=True,
+    sample_level_fn=CodegenMetric(n=16),  # ✅ 正确设置 n=16
+    corpus_level_fn=np.mean,
+    batched_compute=False,
+)
+```
+
+现在框架会正确识别 `CodegenMetric` 是 `SamplingMetric` 的实例，并调用 `num_samples()` 返回 16，从而为每个编程问题生成 16 个代码样本。
 
 ### 4. 指标名称约定
 
@@ -132,45 +159,6 @@ class CodegenMetric(SampleLevelComputation):
   - `maj@3:10` - 多数投票@3，从10个样本中选择
 
 这个命名约定虽然清晰，但需要配合正确的 `num_samples()` 实现才能生效。
-
-## 解决方案
-
-### 需要添加的代码
-
-在 `CodegenMetric` 类中添加 `num_samples()` 方法：
-
-```python
-class CodegenMetric(SampleLevelComputation):
-    def __init__(self, n: int = 16):
-        """初始化代码生成指标
-        
-        Args:
-            n (int): 生成的样本数，默认为 16
-        """
-        super().__init__()
-        self.n = n
-    
-    def compute(self, model_response: ModelResponse, doc: Doc, **kwargs) -> dict:
-        # ... 现有的实现
-        pass
-    
-    def num_samples(self):
-        """返回需要生成的样本数"""
-        return self.n
-```
-
-然后更新指标定义：
-
-```python
-lcb_codegen_metric = SampleLevelMetric(
-    metric_name="codegen_pass@1:16",
-    category=SamplingMethod.GENERATIVE,
-    higher_is_better=True,
-    sample_level_fn=CodegenMetric(n=16),  # 传入 n=16
-    corpus_level_fn=np.mean,
-    batched_compute=False,
-)
-```
 
 ## 工作流程总结
 
