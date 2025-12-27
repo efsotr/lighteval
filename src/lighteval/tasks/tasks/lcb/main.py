@@ -31,7 +31,7 @@ import numpy as np
 from aenum import extend_enum
 
 from lighteval.metrics.metrics import Metrics, SampleLevelMetric
-from lighteval.metrics.metrics_sample import SampleLevelComputation
+from lighteval.metrics.metrics_sample import SampleLevelComputation, SamplingMetric
 from lighteval.models.model_output import ModelResponse
 from lighteval.tasks.lighteval_task import Doc, LightevalTaskConfig
 from lighteval.tasks.requests import SamplingMethod
@@ -76,7 +76,18 @@ def lcb_codegeneration_prompt_fn(line, task_name: str = "lcb:codegeneration") ->
     )
 
 
-class CodegenMetric(SampleLevelComputation):
+class CodegenMetric(SamplingMetric, SampleLevelComputation):
+    def __init__(self, n: int = 16, **kwargs):
+        """初始化代码生成指标
+        
+        Args:
+            n (int): 生成的样本数，默认为 16
+            **kwargs: 其他参数传递给 SamplingMetric
+        """
+        super().__init__(**kwargs)
+        self.n = n
+        self.attribute_must_be_set = ["n"]
+    
     def compute(self, model_response: ModelResponse, doc: Doc, **kwargs) -> dict:
         """Estimates the Pass@1 metric for the code generation task.
         Extract the code from each prediction, Runs it for each sample and generations,
@@ -102,13 +113,17 @@ class CodegenMetric(SampleLevelComputation):
             num_process_evaluate=8,
         )
         return metrics["pass@1"]
+    
+    def num_samples(self):
+        """返回需要生成的样本数"""
+        return self.n
 
 
 lcb_codegen_metric = SampleLevelMetric(
     metric_name="codegen_pass@1:16",  # This is the way of informing the number of generations currently
     category=SamplingMethod.GENERATIVE,
     higher_is_better=True,
-    sample_level_fn=CodegenMetric(),
+    sample_level_fn=CodegenMetric(n=16),  # 设置生成 16 个样本
     corpus_level_fn=np.mean,
     batched_compute=False,
 )
