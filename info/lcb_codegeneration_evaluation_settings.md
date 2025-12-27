@@ -33,6 +33,19 @@ configs = [
 ]
 ```
 
+### Few-Shot Configuration
+```python
+few_shots_split = None  # No few-shot split specified
+few_shots_select = None  # No few-shot selection method
+num_fewshots = 0  # Default value, typically 0 for code generation tasks
+```
+
+**Setting Few-Shot Examples:**
+- The default `num_fewshots` is **0** (zero-shot evaluation)
+- Code generation tasks typically use zero-shot evaluation
+- To use few-shot examples if needed, specify: `lcb:codegeneration|N` where N is the number
+- Format: `task_name|num_fewshots` (e.g., `lcb:codegeneration|0`)
+
 ### Generation Configuration
 ```python
 generation_size = 32768  # Large context for code generation

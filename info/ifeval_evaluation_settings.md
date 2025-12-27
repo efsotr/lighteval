@@ -23,7 +23,14 @@ evaluation_splits = ["train"]
 ```python
 few_shots_split = "train"
 few_shots_select = "random_sampling"
+num_fewshots = 0  # Default value, can be overridden at runtime
 ```
+
+**Setting Few-Shot Examples:**
+- The default `num_fewshots` is **0** (zero-shot evaluation)
+- To use few-shot examples, specify the number when running the task: `ifeval|3` (for 3-shot)
+- Few-shot examples are randomly sampled from the train split
+- Format: `task_name|num_fewshots` (e.g., `ifeval|0`, `ifeval|3`, `ifeval|5`)
 
 ### Generation Configuration
 ```python

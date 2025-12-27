@@ -78,9 +78,26 @@ This directory contains detailed evaluation settings and configurations for vari
 ## Usage
 
 To use these tasks in LightEval, reference them by their task names:
-- `gsm8k`
-- `ifeval`
-- `lcb:codegeneration` (or specific versions like `lcb:codegeneration_v5`)
+- `gsm8k` - zero-shot evaluation (default)
+- `ifeval` - zero-shot evaluation (default)
+- `lcb:codegeneration` (or specific versions like `lcb:codegeneration_v5`) - zero-shot evaluation (default)
+
+### Few-Shot Configuration
+
+All tasks support few-shot evaluation. The default `num_fewshots` is **0** (zero-shot).
+
+To specify the number of few-shot examples, use the format: `task_name|num_fewshots`
+
+**Examples:**
+- `gsm8k|0` - zero-shot evaluation (same as `gsm8k`)
+- `gsm8k|5` - 5-shot evaluation with examples from training set
+- `ifeval|3` - 3-shot evaluation
+- `lcb:codegeneration|0` - zero-shot evaluation (typical for code generation)
+
+**Few-shot example sources:**
+- **gsm8k**: Randomly sampled from train split (`few_shots_select="random_sampling_from_train"`)
+- **ifeval**: Randomly sampled from train split (`few_shots_select="random_sampling"`)
+- **lcb:codegeneration**: No few-shot configuration (typically zero-shot only)
 
 For detailed configuration parameters, solver pipelines, and metric implementations, refer to the individual configuration files.
 
