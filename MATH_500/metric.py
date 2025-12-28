@@ -23,11 +23,13 @@ _PRECISION = 6
 _TIMEOUT_SECONDS = 5
 
 
-def _extract_values(text: str, regexes):
+def _extract_values(text: str, regexes: Sequence) -> list:
+    """Extract candidate answers from text using configured regexes."""
     return extract_target_from_pred(text, regexes, _FALLBACK_MODE, _EXTRACTION_MODE, _TIMEOUT_SECONDS)
 
 
 def _score_prediction(gold_answer: str, prediction: str) -> float:
+    """Return 1.0 if prediction matches the gold answer, otherwise 0.0."""
     gold_extractions = _extract_values(gold_answer, _GOLD_REGEXES) or [gold_answer]
     pred_extractions = _extract_values(prediction, _PRED_REGEXES)
 
@@ -50,9 +52,17 @@ def get_score(inputs: Sequence[dict[str, str]], outputs: Sequence[str]) -> dict[
     Args:
         inputs: List of {"prompt": PROMPT, "answer": ANSWER}
         outputs: List of model outputs corresponding to the prompts.
+
+    Returns:
+        Dictionary with a single key "MATH_500_pass@1" mapping to the pass rate.
+
+    Raises:
+        ValueError: If the number of outputs does not match the number of inputs.
     """
     if len(inputs) != len(outputs):
-        raise ValueError("Number of outputs must match number of inputs for MATH_500 scoring.")
+        raise ValueError(
+            f"Number of outputs ({len(outputs)}) must match number of inputs ({len(inputs)}) for MATH_500 scoring."
+        )
 
     if not inputs:
         return {"MATH_500_pass@1": 0.0}
